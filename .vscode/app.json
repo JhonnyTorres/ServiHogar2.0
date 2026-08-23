@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "ServiHogar",
+    "slug": "ServiHogar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/png-transparent-construction-tools-with-helmet-thumbnail.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/png-transparent-construction-tools-with-helmet-thumbnail.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/png-transparent-construction-tools-with-helmet-thumbnail.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-sqlite"
+    ]
+  }
+}
