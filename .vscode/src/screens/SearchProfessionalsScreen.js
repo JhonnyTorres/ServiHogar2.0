@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    ActivityIndicator, Alert, ScrollView, Modal
+    ActivityIndicator, Alert, ScrollView, Modal, SafeAreaView
 } from "react-native";
 import {
     collection, query, where, getDocs,
@@ -10,11 +10,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../navigation/AuthContext";
 import { db } from "../services/firebaseService";
-import colors from "../constants/colors";
-import { LinearGradient } from "expo-linear-gradient";
+import sqliteService from "../services/sqliteService";
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-
+// ─── Categorías actualizadas ──────────────────────────────────────────────────
 const CATEGORIAS = [
     { id: 'plomeria', label: 'Plomería', icon: 'water-outline' },
     { id: 'electricidad', label: 'Electricidad', icon: 'flash-outline' },
@@ -23,30 +21,29 @@ const CATEGORIAS = [
     { id: 'carpinteria', label: 'Carpintería', icon: 'hammer-outline' },
     { id: 'cerrajeria', label: 'Cerrajería', icon: 'key-outline' },
     { id: 'jardineria', label: 'Jardinería', icon: 'leaf-outline' },
-    { id: 'limpieza', label: 'Limpieza', icon: 'sparkles-outline' },
+    { id: 'aseo', label: 'Aseo', icon: 'sparkles-outline' },
     { id: 'gas', label: 'Gas', icon: 'flame-outline' },
     { id: 'climatizacion', label: 'Climatización', icon: 'snow-outline' },
+    { id: 'domicilios', label: 'Domicilios', icon: 'bicycle-outline' },
+    { id: 'cuidado_ninos', label: 'Cuidado niños', icon: 'happy-outline' },
+    { id: 'adultos_mayores', label: 'Adultos mayores', icon: 'accessibility-outline' },
+    { id: 'servicios_gen', label: 'Servicios gen.', icon: 'briefcase-outline' },
 ];
 
-const LABEL_SERVICIOS = {
-    plomeria: 'Plomería', electricidad: 'Electricidad', construccion: 'Construcción',
-    pintura: 'Pintura', carpinteria: 'Carpintería', cerrajeria: 'Cerrajería',
-    jardineria: 'Jardinería', limpieza: 'Limpieza', gas: 'Gas', climatizacion: 'Climatización',
-};
+const LABEL_SERVICIOS = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.label]));
 
 const initials = (name = '') =>
     name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
-// ─── Componente de estrellas ──────────────────────────────────────────────────
-
+// ─── Estrellas ────────────────────────────────────────────────────────────────
 const Stars = ({ value = 0, count = 0 }) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
         {[1, 2, 3, 4, 5].map(n => (
             <Ionicons
                 key={n}
                 name={n <= Math.round(value) ? 'star' : 'star-outline'}
-                size={13}
-                color={n <= Math.round(value) ? '#EF9F27' : '#ccc'}
+                size={12}
+                color={n <= Math.round(value) ? '#F59E0B' : '#D1D5DB'}
             />
         ))}
         <Text style={styles.ratingText}>
@@ -56,24 +53,25 @@ const Stars = ({ value = 0, count = 0 }) => (
 );
 
 // ─── Modal de confirmación ────────────────────────────────────────────────────
-
 const ConfirmModal = ({ visible, profesional, categoria, onConfirm, onCancel, loading }) => (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
         <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
+                <View style={styles.modalHandle} />
                 <Text style={styles.modalTitle}>Confirmar solicitud</Text>
                 <Text style={styles.modalSubtitle}>
-                    ¿Quieres solicitar el servicio de {LABEL_SERVICIOS[categoria]} a{' '}
-                    <Text style={{ fontWeight: '600' }}>{profesional?.nombre}</Text>?
+                    ¿Quieres solicitar{' '}
+                    <Text style={{ fontWeight: '700', color: '#111' }}>
+                        {LABEL_SERVICIOS[categoria]}
+                    </Text>{' '}
+                    a <Text style={{ fontWeight: '700', color: '#111' }}>{profesional?.nombre}</Text>?
                 </Text>
-
-                <View style={styles.modalInfo}>
-                    <Ionicons name="information-circle-outline" size={16} color="#185FA5" />
+                <View style={styles.modalInfoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
                     <Text style={styles.modalInfoText}>
                         El profesional recibirá tu solicitud y podrá aceptarla o rechazarla.
                     </Text>
                 </View>
-
                 <View style={styles.modalButtons}>
                     <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} disabled={loading}>
                         <Text style={styles.cancelBtnText}>Cancelar</Text>
@@ -95,15 +93,12 @@ const ConfirmModal = ({ visible, profesional, categoria, onConfirm, onCancel, lo
 );
 
 // ─── Tarjeta de profesional ───────────────────────────────────────────────────
-
 const ProfessionalCard = ({ item, onSolicitar }) => {
     const ini = initials(item.nombre);
-    const serviciosLabel = (item.servicios || []).map(s => LABEL_SERVICIOS[s] || s);
-
-    // Calcular promedio desde los campos guardados en el perfil
     const promedio = item.totalCalificaciones > 0
         ? Math.round((item.sumaCalificaciones / item.totalCalificaciones) * 10) / 10
         : 0;
+    const serviciosLabel = (item.servicios || []).map(s => LABEL_SERVICIOS[s] || s);
 
     return (
         <View style={styles.card}>
@@ -116,7 +111,6 @@ const ProfessionalCard = ({ item, onSolicitar }) => {
                     <Stars value={promedio} count={item.totalCalificaciones || 0} />
                 </View>
             </View>
-
             <View style={styles.badgesRow}>
                 {serviciosLabel.map(s => (
                     <View key={s} style={styles.badge}>
@@ -124,9 +118,12 @@ const ProfessionalCard = ({ item, onSolicitar }) => {
                     </View>
                 ))}
             </View>
-
-            <TouchableOpacity style={styles.solicitarBtn} onPress={() => onSolicitar(item)}>
-                <Ionicons name="paper-plane-outline" size={16} color="#fff" />
+            <TouchableOpacity
+                style={styles.solicitarBtn}
+                onPress={() => onSolicitar(item)}
+                activeOpacity={0.85}
+            >
+                <Ionicons name="paper-plane-outline" size={15} color="#fff" />
                 <Text style={styles.solicitarBtnText}>Solicitar servicio</Text>
             </TouchableOpacity>
         </View>
@@ -134,7 +131,6 @@ const ProfessionalCard = ({ item, onSolicitar }) => {
 };
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
-
 const SearchProfessionalsScreen = () => {
     const { user } = useAuth();
     const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
@@ -144,12 +140,10 @@ const SearchProfessionalsScreen = () => {
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedProfesional, setSelectedProfesional] = useState(null);
 
-    const buscarProfesionales = useCallback(async (categoriaId) => {
+    const buscarProfesionales = useCallback(async (categoriaId, categoriaLabel) => {
         setLoadingSearch(true);
         setProfesionales([]);
         try {
-            // Buscar profesionales que tengan la categoría seleccionada
-            // Requiere índice compuesto: rol (Asc) + servicios (Arrays)
             const q = query(
                 collection(db, 'usuarios'),
                 where('rol', '==', 'profesional'),
@@ -158,18 +152,16 @@ const SearchProfessionalsScreen = () => {
             const snap = await getDocs(q);
             const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // Ordenar por calificación promedio descendente
-            // El promedio se calcula desde sumaCalificaciones / totalCalificaciones
-            // guardados directamente en el perfil — sin consultas adicionales
             lista.sort((a, b) => {
-                const proA = a.totalCalificaciones > 0
-                    ? a.sumaCalificaciones / a.totalCalificaciones : 0;
-                const proB = b.totalCalificaciones > 0
-                    ? b.sumaCalificaciones / b.totalCalificaciones : 0;
-                return proB - proA;
+                const pA = a.totalCalificaciones > 0 ? a.sumaCalificaciones / a.totalCalificaciones : 0;
+                const pB = b.totalCalificaciones > 0 ? b.sumaCalificaciones / b.totalCalificaciones : 0;
+                return pB - pA;
             });
 
             setProfesionales(lista);
+
+            // Guardar búsqueda en SQLite
+            try { sqliteService.guardarBusqueda(categoriaId, categoriaLabel); } catch (_) { }
         } catch (error) {
             console.error('Error al buscar profesionales:', error);
             Alert.alert('Error', 'No se pudieron cargar los profesionales.');
@@ -180,7 +172,7 @@ const SearchProfessionalsScreen = () => {
 
     const handleSelectCategoria = (categoria) => {
         setCategoriaSeleccionada(categoria.id);
-        buscarProfesionales(categoria.id);
+        buscarProfesionales(categoria.id, categoria.label);
     };
 
     const handleSolicitar = (profesional) => {
@@ -192,7 +184,6 @@ const SearchProfessionalsScreen = () => {
         if (!selectedProfesional || !categoriaSeleccionada) return;
         setLoadingRequest(true);
         try {
-            // Verificar que no haya una solicitud activa con este profesional
             const q = query(
                 collection(db, 'servicios'),
                 where('clienteId', '==', user.uid),
@@ -203,13 +194,12 @@ const SearchProfessionalsScreen = () => {
             if (!snap.empty) {
                 Alert.alert(
                     'Solicitud existente',
-                    'Ya tienes un servicio activo con este profesional.'
+                    'Ya tienes un servicio activo con este profesional. Ve a Mis servicios para ver su estado.'
                 );
                 setModalVisible(false);
                 return;
             }
 
-            // Crear el servicio en Firestore
             await addDoc(collection(db, 'servicios'), {
                 clienteId: user.uid,
                 profesionalId: selectedProfesional.id,
@@ -222,10 +212,7 @@ const SearchProfessionalsScreen = () => {
             });
 
             setModalVisible(false);
-            Alert.alert(
-                '¡Solicitud enviada!',
-                `${selectedProfesional.nombre} recibirá tu solicitud pronto.`
-            );
+            Alert.alert('¡Solicitud enviada!', `${selectedProfesional.nombre} recibirá tu solicitud pronto.`);
         } catch (error) {
             console.error('Error al crear solicitud:', error);
             Alert.alert('Error', 'No se pudo enviar la solicitud. Intenta de nuevo.');
@@ -235,57 +222,63 @@ const SearchProfessionalsScreen = () => {
     };
 
     return (
-        <LinearGradient colors={colors.gradientePrimario} style={styles.container}>
-            <View style={styles.header}>
+        <View style={styles.container}>
+            {/* Header */}
+            <SafeAreaView style={styles.header} edges={['top']}>
                 <Text style={styles.headerTitle}>Buscar profesionales</Text>
-                <Text style={styles.headerSub}>Selecciona una categoría de servicio</Text>
+                <Text style={styles.headerSub}>Selecciona una categoría</Text>
+            </SafeAreaView>
+
+            {/* Chips de categorías */}
+            <View style={styles.chipsWrapper}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipsContainer}
+                    style={{ flexGrow: 0 }}
+                >
+                    {CATEGORIAS.map(c => (
+                        <TouchableOpacity
+                            key={c.id}
+                            style={[
+                                styles.chip,
+                                categoriaSeleccionada === c.id && styles.chipActive
+                            ]}
+                            onPress={() => handleSelectCategoria(c)}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons
+                                name={c.icon}
+                                size={13}
+                                color={categoriaSeleccionada === c.id ? '#fff' : '#6B7280'}
+                            />
+                            <Text style={[
+                                styles.chipText,
+                                categoriaSeleccionada === c.id && styles.chipTextActive
+                            ]}>
+                                {c.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipsContainer}
-                style={{ flexGrow: 0 }}
-            >
-                {CATEGORIAS.map(c => (
-                    <TouchableOpacity
-                        key={c.id}
-                        style={[
-                            styles.chip,
-                            categoriaSeleccionada === c.id && styles.chipActive
-                        ]}
-                        onPress={() => handleSelectCategoria(c)}
-                    >
-                        <Ionicons
-                            name={c.icon}
-                            size={15}
-                            color={categoriaSeleccionada === c.id ? '#fff' : '#666'}
-                        />
-                        <Text style={[
-                            styles.chipText,
-                            categoriaSeleccionada === c.id && styles.chipTextActive
-                        ]}>
-                            {c.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-
+            {/* Contenido */}
             {!categoriaSeleccionada ? (
                 <View style={styles.centered}>
-                    <Ionicons name="search-outline" size={52} color="#ccc" />
+                    <Ionicons name="search-outline" size={52} color="#D1D5DB" />
                     <Text style={styles.emptyText}>
                         Elige una categoría para ver los profesionales disponibles
                     </Text>
                 </View>
             ) : loadingSearch ? (
                 <View style={styles.centered}>
-                    <ActivityIndicator size="large" color={colors.variante5} />
+                    <ActivityIndicator size="large" color="#2563EB" />
                     <Text style={styles.emptyText}>Buscando profesionales...</Text>
                 </View>
             ) : profesionales.length === 0 ? (
                 <View style={styles.centered}>
-                    <Ionicons name="person-remove-outline" size={52} color="#ccc" />
+                    <Ionicons name="person-remove-outline" size={52} color="#D1D5DB" />
                     <Text style={styles.emptyText}>
                         No hay profesionales disponibles en esta categoría aún
                     </Text>
@@ -310,99 +303,102 @@ const SearchProfessionalsScreen = () => {
                 onCancel={() => setModalVisible(false)}
                 loading={loadingRequest}
             />
-        </LinearGradient>
+        </View>
     );
 };
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    centered: {
-        flex: 1, justifyContent: 'center', alignItems: 'center',
-        gap: 12, paddingHorizontal: 32,
-    },
-    emptyText: { fontSize: 15, color: 'rgba(255,255,255,0.6)', textAlign: 'center', lineHeight: 22 },
+    container: { flex: 1, backgroundColor: '#F5F7FA' },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
+    emptyText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 22 },
 
     header: {
-        backgroundColor: 'rgba(255,255,255,0.10)', paddingHorizontal: 20,
-        paddingTop: 20, paddingBottom: 12,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.18)',
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 20,
+        paddingTop: 16, paddingBottom: 16,
     },
-    headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
 
-    chipsContainer: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, aligenItems: 'center' },
+    chipsWrapper: {
+        backgroundColor: '#fff',
+        borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB',
+    },
+    chipsContainer: {
+        paddingHorizontal: 14, paddingVertical: 10,
+        gap: 8, alignItems: 'center',
+    },
     chip: {
-        flexDirection: 'row', alignItems: 'center', gap: 6,
+        flexDirection: 'row', alignItems: 'center', gap: 5,
         paddingHorizontal: 12, paddingVertical: 7,
-        borderRadius: 20, borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'flex-start'
+        borderRadius: 20, borderWidth: 0.5,
+        borderColor: '#E5E7EB', backgroundColor: '#F9FAFB',
+        alignSelf: 'flex-start',
     },
-    chipActive: { backgroundColor: '#fff', borderColor: '#fff' },
-    chipText: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
-    chipTextActive: { color: '#1e3a86', fontWeight: '600' },
+    chipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+    chipText: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
+    chipTextActive: { color: '#fff', fontWeight: '600' },
 
-    list: { padding: 0, paddingBottom: 24, gap: 0 },
+    list: { padding: 16, gap: 12 },
 
     card: {
-        backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 14,
-        padding: 16, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.3)', marginHorizontal: 16,
-        marginBottom: 12,
+        backgroundColor: '#fff', borderRadius: 14,
+        padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB',
     },
     cardHeader: {
         flexDirection: 'row', alignItems: 'center',
-        gap: 12, marginBottom: 10,
+        gap: 10, marginBottom: 10,
     },
     avatar: {
-        width: 44, height: 44, borderRadius: 22,
-        backgroundColor: '#B5D4F4',
+        width: 42, height: 42, borderRadius: 21,
+        backgroundColor: '#DBEAFE',
         alignItems: 'center', justifyContent: 'center',
     },
-    avatarText: { fontSize: 15, fontWeight: '600', color: '#0C447C' },
-    profesionalName: { fontSize: 15, fontWeight: '600', color: '#111', marginBottom: 3 },
-    ratingText: { fontSize: 12, color: '#888', marginLeft: 2 },
+    avatarText: { fontSize: 14, fontWeight: '700', color: '#1E40AF' },
+    profesionalName: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 3 },
+    ratingText: { fontSize: 11, color: '#6B7280', marginLeft: 2 },
 
     badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
     badge: {
-        backgroundColor: '#E6F1FB', paddingHorizontal: 10,
-        paddingVertical: 4, borderRadius: 12,
+        backgroundColor: '#EFF6FF', paddingHorizontal: 9,
+        paddingVertical: 3, borderRadius: 20,
     },
-    badgeText: { fontSize: 12, color: '#0C447C', fontWeight: '500' },
+    badgeText: { fontSize: 11, color: '#2563EB', fontWeight: '500' },
 
     solicitarBtn: {
         flexDirection: 'row', alignItems: 'center',
-        justifyContent: 'center', gap: 8,
-        backgroundColor: '#185FA5', padding: 11, borderRadius: 10,
+        justifyContent: 'center', gap: 7,
+        backgroundColor: '#2563EB', padding: 11, borderRadius: 10,
     },
-    solicitarBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    solicitarBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
-    modalOverlay: {
-        flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end',
-    },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     modalCard: {
-        backgroundColor: '#fff', borderTopLeftRadius: 20,
-        borderTopRightRadius: 20, padding: 24, paddingBottom: 36,
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 22, borderTopRightRadius: 22,
+        padding: 24, paddingBottom: 36,
     },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#111', marginBottom: 8 },
-    modalSubtitle: { fontSize: 15, color: '#444', lineHeight: 22, marginBottom: 16 },
-    modalInfo: {
+    modalHandle: {
+        width: 40, height: 4, borderRadius: 2,
+        backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 16,
+    },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: '#111', marginBottom: 8 },
+    modalSubtitle: { fontSize: 14, color: '#444', lineHeight: 22, marginBottom: 14 },
+    modalInfoBox: {
         flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-        backgroundColor: '#E6F1FB', borderRadius: 10,
+        backgroundColor: '#EFF6FF', borderRadius: 10,
         padding: 12, marginBottom: 20,
     },
-    modalInfoText: { flex: 1, fontSize: 13, color: '#185FA5', lineHeight: 18 },
+    modalInfoText: { flex: 1, fontSize: 13, color: '#2563EB', lineHeight: 18 },
     modalButtons: { flexDirection: 'row', gap: 12 },
     cancelBtn: {
         flex: 1, padding: 13, borderRadius: 10,
-        borderWidth: 1, borderColor: '#ddd', alignItems: 'center',
+        borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center',
     },
-    cancelBtnText: { fontSize: 15, color: '#666', fontWeight: '600' },
-    confirmBtn: {
-        flex: 1, padding: 13, borderRadius: 10,
-        backgroundColor: '#185FA5', alignItems: 'center',
-    },
-    confirmBtnText: { fontSize: 15, color: '#fff', fontWeight: '600' },
+    cancelBtnText: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
+    confirmBtn: { flex: 1, padding: 13, borderRadius: 10, backgroundColor: '#2563EB', alignItems: 'center' },
+    confirmBtnText: { fontSize: 14, color: '#fff', fontWeight: '600' },
 });
 
 export default SearchProfessionalsScreen;
