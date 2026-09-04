@@ -1,66 +1,82 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db, onAuthStateChanged, signOut } from "../src/services/firebaseService";
+import { sendEmailVerification, signOut } from "firebase/auth";
+import { auth, db, onAuthStateChanged } from "../src/services/firebaseService";
+import sqliteService from "../src/services/sqliteService";
 
 export const AuthContext = createContext();
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth debe usarse dentro de un AuthProvider');
-    }
+    if (!context) throw new Error('useAuth debe usarse dentro de un AuthProvider');
     return context;
 };
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [rol, setRol] = useState(null);
+    const [emailVerified, setEmailVerified] = useState(false);
     const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (firebaseUser) {
-            try {
-                // Validacion del usuario
-                await firebaseUser.reload();
-
+    // ── Escuchar cambios de autenticación ─────────────────────────────────────
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
                 setUser(firebaseUser);
+                setEmailVerified(firebaseUser.emailVerified);
 
-                const snap = await getDoc(doc(db, 'usuarios', firebaseUser.uid));
-
-                if (snap.exists()) {
-                    setRol(snap.data().rol);
+                if (firebaseUser.emailVerified) {
+                    try {
+                        const snap = await getDoc(doc(db, 'usuarios', firebaseUser.uid));
+                        setRol(snap.exists() ? snap.data().rol : null);
+                    } catch (error) {
+                        console.error('Error al obtener el rol:', error);
+                        setRol(null);
+                    }
                 } else {
-                    // 🔥 Usuario no existe en Firestore
-                    await signOut(auth);
-                    setUser(null);
                     setRol(null);
+                    // Intentar enviar verificación si aún no se ha enviado
+                    try {
+                        await sendEmailVerification(firebaseUser);
+                    } catch (_) {
+                        // Puede fallar si ya se envió recientemente — no es crítico
+                    }
                 }
-
-            } catch (error) {
-                // 🔥 Usuario eliminado de Firebase Auth
-                console.log("Usuario ya no existe:", error);
-
-                await signOut(auth);
+            } else {
                 setUser(null);
                 setRol(null);
+                setEmailVerified(false);
             }
-        } else {
-            setUser(null);
-            setRol(null);
+            setLoading(false);
+        });
+
+        return unsubscribe;
+    }, []);
+
+    // ── Detectar cuando emailVerified cambia a true desde EmailVerificationScreen ──
+    useEffect(() => {
+        if (user?.emailVerified && !emailVerified) {
+            setEmailVerified(true);
+            // Cargar el rol ahora que el correo está verificado
+            getDoc(doc(db, 'usuarios', user.uid))
+                .then(snap => {
+                    setRol(snap.exists() ? snap.data().rol : null);
+                })
+                .catch(error => {
+                    console.error('Error al cargar el rol tras verificación:', error);
+                    setRol(null);
+                });
         }
+    }, [user]);
 
-        setLoading(false);
-    });
-
-    return unsubscribe;
-}, []);
-
+    // ── Cerrar sesión ─────────────────────────────────────────────────────────
     const logout = async () => {
         try {
-            await signOut(auth);
-            setUser(null);
+            sqliteService.limpiarTodo();
             setRol(null);
+            setUser(null);
+            setEmailVerified(false);
+            await signOut(auth);
         } catch (error) {
             console.error('Error al cerrar sesión:', error);
         }
@@ -69,6 +85,7 @@ export const AuthProvider = ({ children }) => {
     const value = {
         user,
         rol,
+        emailVerified,
         setUser,
         logout,
         loading,

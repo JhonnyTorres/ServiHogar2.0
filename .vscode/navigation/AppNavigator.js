@@ -2,16 +2,16 @@ import React from 'react';
 import { Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from './AuthContext';
 
 import SplashScreen from '../src/screens/SplashScreen';
-import RegisterScreen from '../src/screens/auth/RegisterScreen';
 import LoginScreen from '../src/screens/auth/LoginScreen';
+import RegisterScreen from '../src/screens/auth/RegisterScreen';
 import RoleSelectionScreen from '../src/screens/auth/RoleSelectionScreen';
 import ProfessionalProfileScreen from '../src/screens/auth/ProfessionalProfileScreen';
+import EmailVerificationScreen from '../src/screens/auth/EmailVerificationScreen';
 import HomeScreen from '../src/screens/HomeScreen';
 import UserScreen from '../src/screens/UserScreen';
 import SettingsScreen from '../src/screens/SettingsScreen';
@@ -21,8 +21,8 @@ import ProfessionalServicesScreen from '../src/screens/ProfessionalServicesScree
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
-const ProfileStack = createNativeStackNavigator();
 
+// ─── Tab Navigator ────────────────────────────────────────────────────────────
 const TabNavigator = () => {
     const { user, rol } = useAuth();
 
@@ -32,7 +32,6 @@ const TabNavigator = () => {
             screenOptions={({ route }) => ({
                 tabBarIcon: ({ color, size, focused }) => {
                     let iconName;
-
                     if (route.name === 'Home') {
                         iconName = focused ? 'home' : 'home-outline';
                     } else if (route.name === 'Settings') {
@@ -43,8 +42,7 @@ const TabNavigator = () => {
                                 <Image
                                     source={{ uri: user.photoURL }}
                                     style={{
-                                        width: size,
-                                        height: size,
+                                        width: size, height: size,
                                         borderRadius: size / 2,
                                         borderWidth: focused ? 2 : 0,
                                         borderColor: focused ? '#024d6b' : 'transparent',
@@ -55,12 +53,10 @@ const TabNavigator = () => {
                         return (
                             <Ionicons
                                 name={focused ? 'person' : 'person-outline'}
-                                size={size}
-                                color={color}
+                                size={size} color={color}
                             />
                         );
                     }
-
                     return <Ionicons name={iconName} size={size} color={color} />;
                 },
                 tabBarActiveTintColor: '#0077B6',
@@ -74,6 +70,7 @@ const TabNavigator = () => {
                 options={{ tabBarLabel: 'Home' }}
             />
 
+            {/* Solo para clientes */}
             {rol === 'cliente' && (
                 <Tab.Screen
                     name="Buscar"
@@ -83,8 +80,7 @@ const TabNavigator = () => {
                         tabBarIcon: ({ color, size, focused }) => (
                             <Ionicons
                                 name={focused ? 'search' : 'search-outline'}
-                                size={size}
-                                color={color}
+                                size={size} color={color}
                             />
                         ),
                     }}
@@ -100,14 +96,14 @@ const TabNavigator = () => {
                         tabBarIcon: ({ color, size, focused }) => (
                             <Ionicons
                                 name={focused ? 'clipboard' : 'clipboard-outline'}
-                                size={size}
-                                color={color}
+                                size={size} color={color}
                             />
                         ),
                     }}
                 />
             )}
 
+            {/* Solo para profesionales */}
             {rol === 'profesional' && (
                 <Tab.Screen
                     name="MisSolicitudes"
@@ -117,8 +113,7 @@ const TabNavigator = () => {
                         tabBarIcon: ({ color, size, focused }) => (
                             <Ionicons
                                 name={focused ? 'briefcase' : 'briefcase-outline'}
-                                size={size}
-                                color={color}
+                                size={size} color={color}
                             />
                         ),
                     }}
@@ -139,28 +134,28 @@ const TabNavigator = () => {
     );
 };
 
+// ─── App Navigator ────────────────────────────────────────────────────────────
 const AppNavigator = () => {
-    const { user, loading } = useAuth();
+    const { user, emailVerified, loading } = useAuth();
 
-    if (loading) {
-        return <SplashScreen />;
-    }
+    if (loading) return <SplashScreen />;
 
     return (
-        <Stack.Navigator initialRouteName={user ? 'Main' : 'Login'}>
-            {user ? (
-                <Stack.Screen
-                    name="Main"
-                    component={TabNavigator}
-                    options={{ headerShown: false }}
-                />
-            ) : (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {!user ? (
+                // ── Sin sesión ────────────────────────────────────────────────
                 <>
-                    <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="ProfessionalProfile" component={ProfessionalProfileScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen name="Register" component={RegisterScreen} />
+                    <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+                    <Stack.Screen name="ProfessionalProfile" component={ProfessionalProfileScreen} />
                 </>
+            ) : !emailVerified ? (
+                // ── Con sesión pero sin verificar correo ──────────────────────
+                <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+            ) : (
+                // ── Sesión activa y correo verificado ─────────────────────────
+                <Stack.Screen name="Main" component={TabNavigator} />
             )}
         </Stack.Navigator>
     );
