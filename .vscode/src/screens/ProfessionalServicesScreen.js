@@ -11,15 +11,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../navigation/AuthContext";
 import { db } from "../services/firebaseService";
 import colors from "../constants/colors";
-import { LinearGradient } from "expo-linear-gradient";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const ESTADO_CONFIG = {
-    pendiente: { label: 'Pendiente', bg: '#FAEEDA', color: '#633806', icon: 'time-outline' },
-    en_proceso: { label: 'En proceso', bg: '#E6F1FB', color: '#0C447C', icon: 'construct-outline' },
-    finalizado: { label: 'Finalizado', bg: '#EAF3DE', color: '#27500A', icon: 'checkmark-circle-outline' },
-    rechazado: { label: 'Rechazado', bg: '#FCEBEB', color: '#A32D2D', icon: 'close-circle-outline' },
+    pendiente: { label: 'Pendiente', bg: colors.warningBg, color: colors.warning, icon: 'time-outline' },
+    en_proceso: { label: 'En proceso', bg: colors.infoBg, color: colors.primary, icon: 'construct-outline' },
+    finalizado: { label: 'Finalizado', bg: colors.successBg, color: colors.success, icon: 'checkmark-circle-outline' },
+    rechazado: { label: 'Rechazado', bg: colors.errorBg, color: colors.error, icon: 'close-circle-outline' },
 };
 
 const LABEL_SERVICIOS = {
@@ -92,7 +91,7 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
                                 key={n}
                                 name={n <= item.calificacion ? 'star' : 'star-outline'}
                                 size={16}
-                                color={n <= item.calificacion ? '#EF9F27' : '#ccc'}
+                                color={n <= item.calificacion ? colors.primaryAmber : colors.border}
                             />
                         ))}
                     </View>
@@ -104,7 +103,7 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
 
             {/* Acciones según estado */}
             {isLoading ? (
-                <ActivityIndicator style={{ marginTop: 12 }} color={colors.variante5} />
+                <ActivityIndicator style={{ marginTop: 12 }} color={colors.primaryAmber} />
             ) : (
                 <>
                     {item.estado === 'pendiente' && (
@@ -113,7 +112,7 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
                                 style={styles.btnRechazar}
                                 onPress={() => onRechazar(item.id)}
                             >
-                                <Ionicons name="close-outline" size={18} color="#A32D2D" />
+                                <Ionicons name="close-outline" size={18} color={colors.error} />
                                 <Text style={styles.btnRechazarText}>Rechazar</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -256,14 +255,14 @@ const ProfessionalServicesScreen = () => {
     if (loading) {
         return (
             <View style={styles.centered}>
-                <ActivityIndicator size="large" color={colors.variante5} />
+                <ActivityIndicator size="large" color={colors.primaryAmber} />
             </View>
         );
     }
 
     return (
-        <LinearGradient colors={colors.gradientePrimario} style={styles.container}>
-            {/* Encabezado */}
+        <View style={styles.container}>
+            {/* Encabezado sólido ámbar (rol profesional) */}
             <View style={styles.header}>
                 <View>
                     <Text style={styles.headerTitle}>Mis solicitudes</Text>
@@ -303,7 +302,7 @@ const ProfessionalServicesScreen = () => {
             {/* Lista */}
             {filtrados.length === 0 ? (
                 <View style={styles.centered}>
-                    <Ionicons name="clipboard-outline" size={48} color="#ccc" />
+                    <Ionicons name="clipboard-outline" size={48} color={colors.textMuted} />
                     <Text style={styles.emptyText}>
                         No tienes solicitudes {FILTROS.find(f => f.key === filtro)?.label.toLowerCase()}
                     </Text>
@@ -325,53 +324,52 @@ const ProfessionalServicesScreen = () => {
                     showsVerticalScrollIndicator={false}
                 />
             )}
-        </LinearGradient>
+        </View>
     );
 };
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: colors.bg },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
-    emptyText: { fontSize: 15, color: 'rgba(255,255,255,0.6)', textAlign: 'center', paddingHorizontal: 32 },
+    emptyText: { fontSize: 15, color: colors.textMuted, textAlign: 'center', paddingHorizontal: 32 },
 
     header: {
-        backgroundColor: 'rgba(255,255,255,0.10)', paddingHorizontal: 20,
-        paddingTop: 20, paddingBottom: 12,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.18)',
+        backgroundColor: colors.primaryAmber, paddingHorizontal: 20,
+        paddingTop: 20, paddingBottom: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     },
     headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
     badgePendientes: {
-        backgroundColor: '#E24B4A', paddingHorizontal: 12,
+        backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12,
         paddingVertical: 6, borderRadius: 20,
     },
     badgePendientesText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-    filtrosContainer: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+    filtrosContainer: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
     filtroChip: {
         paddingHorizontal: 16, paddingVertical: 7,
-        borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card,
     },
-    filtroChipActive: { backgroundColor: '#fff', borderColor: '#fff' },
-    filtroText: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
-    filtroTextActive: { color: '#1e3a86', fontWeight: '600' },
+    filtroChipActive: { backgroundColor: colors.primaryAmber, borderColor: colors.primaryAmber },
+    filtroText: { fontSize: 13, color: colors.textMuted },
+    filtroTextActive: { color: '#fff', fontWeight: '600' },
 
     list: { padding: 0, gap: 0, paddingBottom: 24 },
 
     card: {
-        backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 14,
-        padding: 16, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.3)', marginHorizontal: 16,
+        backgroundColor: colors.card, borderRadius: 14,
+        padding: 16, borderWidth: 1, borderColor: colors.border, marginHorizontal: 20,
         marginBottom: 12,
     },
     cardHeader: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'flex-start', marginBottom: 12,
     },
-    cardTitle: { fontSize: 16, fontWeight: '600', color: '#111' },
-    cardDate: { fontSize: 12, color: '#888', marginTop: 2 },
+    cardTitle: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+    cardDate: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     badge: {
         flexDirection: 'row', alignItems: 'center',
         paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
@@ -380,44 +378,44 @@ const styles = StyleSheet.create({
 
     clienteRow: {
         flexDirection: 'row', alignItems: 'center', gap: 10,
-        backgroundColor: '#f8f8f8', borderRadius: 10, padding: 10,
+        backgroundColor: colors.bg, borderRadius: 10, padding: 10,
     },
     avatar: {
         width: 38, height: 38, borderRadius: 19,
-        backgroundColor: '#9FE1CB', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.chipBg, alignItems: 'center', justifyContent: 'center',
     },
-    avatarText: { fontSize: 13, fontWeight: '600', color: '#085041' },
-    clienteNombre: { fontSize: 14, fontWeight: '600', color: '#111' },
-    clienteEmail: { fontSize: 12, color: '#888', marginTop: 1 },
+    avatarText: { fontSize: 13, fontWeight: '600', color: colors.primaryAmber },
+    clienteNombre: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    clienteEmail: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
 
     calificacionRow: {
-        marginTop: 12, borderTopWidth: 0.5,
-        borderTopColor: '#eee', paddingTop: 10,
+        marginTop: 12, borderTopWidth: 1,
+        borderTopColor: colors.border, paddingTop: 10,
     },
-    calLabel: { fontSize: 13, color: '#666' },
-    calComentario: { fontSize: 13, color: '#555', fontStyle: 'italic', marginTop: 6 },
+    calLabel: { fontSize: 13, color: colors.textMuted },
+    calComentario: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', marginTop: 6 },
 
     botonesRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     btnRechazar: {
         flex: 1, flexDirection: 'row', alignItems: 'center',
         justifyContent: 'center', gap: 6,
         padding: 10, borderRadius: 10,
-        borderWidth: 1, borderColor: '#F09595',
-        backgroundColor: '#FCEBEB',
+        borderWidth: 1, borderColor: colors.error,
+        backgroundColor: colors.errorBg,
     },
-    btnRechazarText: { fontSize: 14, color: '#A32D2D', fontWeight: '600' },
+    btnRechazarText: { fontSize: 14, color: colors.error, fontWeight: '600' },
     btnAceptar: {
         flex: 1, flexDirection: 'row', alignItems: 'center',
         justifyContent: 'center', gap: 6,
         padding: 10, borderRadius: 10,
-        backgroundColor: '#185FA5',
+        backgroundColor: colors.success,
     },
     btnAceptarText: { fontSize: 14, color: '#fff', fontWeight: '600' },
     btnFinalizar: {
         flexDirection: 'row', alignItems: 'center',
         justifyContent: 'center', gap: 6,
         marginTop: 12, padding: 11, borderRadius: 10,
-        backgroundColor: '#3B6D11',
+        backgroundColor: colors.success,
     },
     btnFinalizarText: { fontSize: 14, color: '#fff', fontWeight: '600' },
 });

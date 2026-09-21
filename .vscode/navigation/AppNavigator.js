@@ -18,6 +18,8 @@ import SettingsScreen from '../src/screens/SettingsScreen';
 import ClientServicesScreen from '../src/screens/ClientServicesScreen';
 import SearchProfessionalsScreen from '../src/screens/SearchProfessionalsScreen';
 import ProfessionalServicesScreen from '../src/screens/ProfessionalServicesScreen';
+import ChatListScreen from '../src/screens/ChatListScreen';
+import ChatScreen from '../src/screens/ChatScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -36,6 +38,8 @@ const TabNavigator = () => {
                         iconName = focused ? 'home' : 'home-outline';
                     } else if (route.name === 'Settings') {
                         iconName = focused ? 'settings' : 'settings-outline';
+                    } else if (route.name === 'Chats') {
+                        iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
                     } else if (route.name === 'User') {
                         if (user?.photoURL) {
                             return (
@@ -120,6 +124,13 @@ const TabNavigator = () => {
                 />
             )}
 
+            {/* Chats: disponible para ambos roles */}
+            <Tab.Screen
+                name="Chats"
+                component={ChatListScreen}
+                options={{ tabBarLabel: 'Mensajes' }}
+            />
+
             <Tab.Screen
                 name="User"
                 component={UserScreen}
@@ -155,7 +166,11 @@ const AppNavigator = () => {
                 <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
             ) : (
                 // ── Sesión activa y correo verificado ─────────────────────────
-                <Stack.Screen name="Main" component={TabNavigator} />
+                <>
+                    <Stack.Screen name="Main" component={TabNavigator} />
+                    {/* Fuera del Tab Navigator para que la conversación tape la tab bar */}
+                    <Stack.Screen name="Chat" component={ChatScreen} />
+                </>
             )}
         </Stack.Navigator>
     );
