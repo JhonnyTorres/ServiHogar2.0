@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
     ActivityIndicator, Alert, ScrollView
@@ -10,7 +10,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../navigation/AuthContext";
 import { db } from "../services/firebaseService";
+import { generarCotizacionPDF, generarFacturaPDF } from "../services/pdfService";
 import colors from "../constants/colors";
+import MontoModal from "../components/MontoModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,9 @@ const formatDate = (ts) => {
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
+const formatCOP = (monto) =>
+    (monto || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
 // ─── Caché de clientes ────────────────────────────────────────────────────────
 
@@ -81,6 +86,18 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
                 </View>
             </View>
 
+            {/* Monto cotizado / final, si existen */}
+            {(item.montoCotizado || item.montoFinal) && (
+                <View style={styles.montoRow}>
+                    <Text style={styles.montoLabel}>
+                        {item.estado === 'finalizado' ? 'Valor final' : 'Cotizado'}
+                    </Text>
+                    <Text style={styles.montoValor}>
+                        {formatCOP(item.estado === 'finalizado' ? item.montoFinal : item.montoCotizado)}
+                    </Text>
+                </View>
+            )}
+
             {/* Calificación recibida si está finalizado */}
             {item.estado === 'finalizado' && item.calificacion && (
                 <View style={styles.calificacionRow}>
@@ -117,7 +134,7 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.btnAceptar}
-                                onPress={() => onAceptar(item.id)}
+                                onPress={() => onAceptar(item)}
                             >
                                 <Ionicons name="checkmark-outline" size={18} color="#fff" />
                                 <Text style={styles.btnAceptarText}>Aceptar</Text>
@@ -128,7 +145,7 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
                     {item.estado === 'en_proceso' && (
                         <TouchableOpacity
                             style={styles.btnFinalizar}
-                            onPress={() => onFinalizar(item.id)}
+                            onPress={() => onFinalizar(item)}
                         >
                             <Ionicons name="checkmark-done-outline" size={18} color="#fff" />
                             <Text style={styles.btnFinalizarText}>Marcar como finalizado</Text>
@@ -148,6 +165,17 @@ const ProfessionalServicesScreen = () => {
     const [loading, setLoading] = useState(true);
     const [loadingId, setLoadingId] = useState(null);
     const [filtro, setFiltro] = useState('pendiente');
+    const [profesionalNombre, setProfesionalNombre] = useState('');
+
+    // Modal de monto: guarda a qué solicitud aplica y de qué tipo es
+    const [modalMonto, setModalMonto] = useState(null); // { servicio, tipo: 'cotizacion' | 'factura' }
+
+    useEffect(() => {
+        if (!user) return;
+        getDoc(doc(db, 'usuarios', user.uid)).then(snap => {
+            setProfesionalNombre(snap.data()?.nombre || '');
+        });
+    }, [user]);
 
     useEffect(() => {
         if (!user) return;
@@ -195,29 +223,21 @@ const ProfessionalServicesScreen = () => {
         return () => unsubscribe();
     }, [user]);
 
-    const cambiarEstado = async (servicioId, nuevoEstado) => {
+    const actualizarServicio = async (servicioId, cambios) => {
         setLoadingId(servicioId);
         try {
-            await updateDoc(doc(db, 'servicios', servicioId), {
-                estado: nuevoEstado,
-            });
+            await updateDoc(doc(db, 'servicios', servicioId), cambios);
         } catch (error) {
-            console.error('Error al actualizar estado:', error);
-            Alert.alert('Error', 'No se pudo actualizar el estado del servicio.');
+            console.error('Error al actualizar el servicio:', error);
+            Alert.alert('Error', 'No se pudo actualizar el servicio.');
         } finally {
             setLoadingId(null);
         }
     };
 
-    const handleAceptar = (id) => {
-        Alert.alert(
-            'Aceptar solicitud',
-            '¿Confirmas que aceptas este servicio?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Aceptar', onPress: () => cambiarEstado(id, 'en_proceso') },
-            ]
-        );
+    // ─── Aceptar → abre modal de cotización ────────────────────────────────────
+    const handleAceptar = (item) => {
+        setModalMonto({ servicio: item, tipo: 'cotizacion' });
     };
 
     const handleRechazar = (id) => {
@@ -226,20 +246,51 @@ const ProfessionalServicesScreen = () => {
             '¿Seguro que quieres rechazar este servicio?',
             [
                 { text: 'Cancelar', style: 'cancel' },
-                { text: 'Rechazar', style: 'destructive', onPress: () => cambiarEstado(id, 'rechazado') },
+                { text: 'Rechazar', style: 'destructive', onPress: () => actualizarServicio(id, { estado: 'rechazado' }) },
             ]
         );
     };
 
-    const handleFinalizar = (id) => {
-        Alert.alert(
-            'Finalizar servicio',
-            '¿Confirmas que el servicio ha sido completado?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Finalizar', onPress: () => cambiarEstado(id, 'finalizado') },
-            ]
-        );
+    // ─── Finalizar → abre modal de factura ─────────────────────────────────────
+    const handleFinalizar = (item) => {
+        setModalMonto({ servicio: item, tipo: 'factura' });
+    };
+
+    // ─── Confirmación del modal: guarda en Firestore y genera el PDF ──────────
+    const handleConfirmarMonto = async ({ monto, descripcion }) => {
+        const { servicio, tipo } = modalMonto;
+        setModalMonto(null);
+
+        try {
+            if (tipo === 'cotizacion') {
+                await actualizarServicio(servicio.id, {
+                    estado: 'en_proceso',
+                    montoCotizado: monto,
+                    descripcionCotizacion: descripcion || null,
+                });
+                await generarCotizacionPDF({
+                    servicio,
+                    clienteNombre: servicio._clienteNombre,
+                    profesionalNombre,
+                    monto,
+                    descripcion,
+                });
+            } else {
+                await actualizarServicio(servicio.id, {
+                    estado: 'finalizado',
+                    montoFinal: monto,
+                });
+                await generarFacturaPDF({
+                    servicio,
+                    clienteNombre: servicio._clienteNombre,
+                    profesionalNombre,
+                    monto,
+                });
+            }
+        } catch (error) {
+            console.error('Error al generar el documento:', error);
+            Alert.alert('Documento no generado', 'El servicio se actualizó, pero no se pudo generar el PDF.');
+        }
     };
 
     const FILTROS = [
@@ -324,6 +375,20 @@ const ProfessionalServicesScreen = () => {
                     showsVerticalScrollIndicator={false}
                 />
             )}
+
+            <MontoModal
+                visible={!!modalMonto}
+                titulo={modalMonto?.tipo === 'cotizacion' ? 'Cotizar servicio' : 'Finalizar y facturar'}
+                subtitulo={
+                    modalMonto
+                        ? `${LABEL_SERVICIOS[modalMonto.servicio.categoria] || modalMonto.servicio.categoria} · ${modalMonto.servicio._clienteNombre}`
+                        : ''
+                }
+                montoInicial={modalMonto?.tipo === 'factura' ? modalMonto.servicio.montoCotizado : ''}
+                pedirDescripcion={modalMonto?.tipo === 'cotizacion'}
+                onConfirmar={handleConfirmarMonto}
+                onCancelar={() => setModalMonto(null)}
+            />
         </View>
     );
 };
@@ -387,6 +452,13 @@ const styles = StyleSheet.create({
     avatarText: { fontSize: 13, fontWeight: '600', color: colors.primaryAmber },
     clienteNombre: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
     clienteEmail: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+
+    montoRow: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border,
+    },
+    montoLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+    montoValor: { fontSize: 15, color: colors.textPrimary, fontWeight: '700' },
 
     calificacionRow: {
         marginTop: 12, borderTopWidth: 1,

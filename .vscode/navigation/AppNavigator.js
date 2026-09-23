@@ -20,6 +20,8 @@ import SearchProfessionalsScreen from '../src/screens/SearchProfessionalsScreen'
 import ProfessionalServicesScreen from '../src/screens/ProfessionalServicesScreen';
 import ChatListScreen from '../src/screens/ChatListScreen';
 import ChatScreen from '../src/screens/ChatScreen';
+import SplashClientScreen from '../src/screens/SplashClientScreen';
+import SplashProScreen from '../src/screens/SplashProScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -147,7 +149,14 @@ const TabNavigator = () => {
 
 // ─── App Navigator ────────────────────────────────────────────────────────────
 const AppNavigator = () => {
-    const { user, emailVerified, loading } = useAuth();
+    const { user, rol, emailVerified, loading } = useAuth();
+    const [mostrarBienvenida, setMostrarBienvenida] = React.useState(true);
+
+    // Si el usuario cierra sesión, la próxima vez que entre debe volver a ver
+    // el splash de bienvenida.
+    React.useEffect(() => {
+        if (!user) setMostrarBienvenida(true);
+    }, [user]);
 
     if (loading) return <SplashScreen />;
 
@@ -166,11 +175,20 @@ const AppNavigator = () => {
                 <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
             ) : (
                 // ── Sesión activa y correo verificado ─────────────────────────
-                <>
-                    <Stack.Screen name="Main" component={TabNavigator} />
-                    {/* Fuera del Tab Navigator para que la conversación tape la tab bar */}
-                    <Stack.Screen name="Chat" component={ChatScreen} />
-                </>
+                mostrarBienvenida ? (
+                    <Stack.Screen name="Welcome">
+                        {() => rol === 'profesional'
+                            ? <SplashProScreen onDone={() => setMostrarBienvenida(false)} />
+                            : <SplashClientScreen onDone={() => setMostrarBienvenida(false)} />
+                        }
+                    </Stack.Screen>
+                ) : (
+                    <>
+                        <Stack.Screen name="Main" component={TabNavigator} />
+                        {/* Fuera del Tab Navigator para que la conversación tape la tab bar */}
+                        <Stack.Screen name="Chat" component={ChatScreen} />
+                    </>
+                )
             )}
         </Stack.Navigator>
     );

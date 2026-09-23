@@ -21,7 +21,15 @@
     "plugins": [
       "expo-font",
       "expo-sqlite",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1D4ED8"
+        }
+      ],
+      "expo-sharing"
     ]
   }
 }
