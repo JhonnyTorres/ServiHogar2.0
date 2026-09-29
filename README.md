@@ -36,7 +36,9 @@ La aplicación permite registrar usuarios, seleccionar el rol correspondiente e 
 
 Durante el proceso de autenticación se realiza la verificación de la cuenta mediante el envío de un correo electrónico al usuario registrado.
 
-> **Evidencia:** verificación de correo electrónico mediante Firebase Authentication.
+| Envió correo electrónico | Confirmación correo electrónico |
+|:---:|:---:|
+| <img src="assets/SendEmailVerification.jpeg" width="250"> | <img src="assets/VerificationEmail.jpeg" width="250"> |
 
 ### 👤 Acceso según el tipo de usuario
 
