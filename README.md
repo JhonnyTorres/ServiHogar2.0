@@ -28,7 +28,7 @@ Plomería · Electricidad · Construcción · Pintura · Carpintería · Cerraje
 
 | Inicio de sesión | Registro | Selección de rol |
 |:---:|:---:|:---:|
-| <img src="assets/Login.jpeg" width="250"> | <img src="assets/Register.jpeg" width="250"> | <img src="assets/RoleSelectionScreen.jpeg" width="250"> |
+| <img src="assets/Login.jpeg" width="250"> | <img src="assets/Register.jpeg" width="250"> | <img src="assets/RolSelection.jpeg" width="250"> |
 
 La aplicación permite registrar usuarios, seleccionar el rol correspondiente e iniciar sesión mediante Firebase Authentication.
 
