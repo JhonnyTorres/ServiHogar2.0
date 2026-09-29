@@ -69,6 +69,59 @@ El profesional puede enviar una cotización al cliente como parte del proceso de
 |:---:|
 | <img src="assets/PricePro.jpeg" width="250"> |
 
+---
+
+## 📊 Gestión del Proyecto
+
+El desarrollo de **ServiHogar 2.0** fue realizado de manera individual. 
+Git y GitHub fueron utilizados como herramientas de control de versiones 
+para almacenar el código fuente, registrar los cambios y mantener la 
+evolución del proyecto.
+
+### 🗂️ Repositorio
+
+El código fuente y los recursos del proyecto se encuentran disponibles en:
+
+🔗 [Repositorio GitHub - ServiHogar 2.0](https://github.com/JhonnyTorres/ServiHogar2.0)
+
+### 🌿 Ramas
+
+Actualmente el repositorio cuenta con las siguientes ramas principales 
+utilizadas durante el desarrollo:
+
+- `main`: rama principal del proyecto.
+- `proyectos`: rama utilizada para el desarrollo del proyecto.
+
+### 💾 Control de versiones
+
+Git y GitHub permitieron:
+
+- Registrar los cambios realizados durante el desarrollo.
+- Mantener un historial de modificaciones.
+- Gestionar los archivos y recursos del proyecto.
+- Mantener un respaldo remoto del código fuente.
+- Recuperar versiones anteriores cuando fue necesario.
+
+### 🔄 Evolución del proyecto
+
+El historial de commits evidencia el desarrollo progresivo de la aplicación 
+y la actualización de diferentes componentes del proyecto.
+
+Entre los cambios registrados se encuentran modificaciones relacionadas con:
+
+- Actualización de la documentación del proyecto.
+- Incorporación de evidencias de verificación de correo electrónico.
+- Organización y actualización de imágenes.
+- Corrección de referencias a imágenes en el README.
+- Documentación del envío de cotizaciones.
+- Actualización de las evidencias de las funcionalidades.
+
+### 📸 Evidencia del control de versiones
+
+La siguiente captura muestra el historial de commits registrados en el 
+repositorio de GitHub:
+
+|<img src="docs/evidencias.md/commits.png" width="900">|<img src="docs/evidencias.md/repositorio.png" width="900">|
 
 ---
 
