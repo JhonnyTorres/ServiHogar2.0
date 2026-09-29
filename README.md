@@ -58,7 +58,7 @@ Cada perfil dispone de una vista principal adaptada a las funciones correspondie
 
 | Buscar profesionales | Mis servicios |
 |:---:|:---:|
-| <img src="assets/SearchProfessionalsScreen.jpeg" width="250"> | <img src="assets/ClientServicesScreen.jpeg" width="250"> |
+| <img src="assets/.jpeg" width="250"> | <img src="assets/ClientServicesScreen.jpeg" width="250"> |
 
 ### 💰 Gestión de cotizaciones
 
