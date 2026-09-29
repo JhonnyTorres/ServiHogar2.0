@@ -50,7 +50,7 @@ La aplicación diferencia el flujo de navegación dependiendo del rol selecciona
 
 | Vista principal del cliente | Vista principal del profesional |
 |:---:|:---:|
-| <img src="assets/Home.jpeg" width="250"> | <img src="assets/HomeProfessional.jpeg" width="250"> |
+| <img src="assets/HomeClient.jpeg" width="250"> | <img src="assets/HomePro.jpeg" width="250"> |
 
 Cada perfil dispone de una vista principal adaptada a las funciones correspondientes a su rol.
 
@@ -58,15 +58,15 @@ Cada perfil dispone de una vista principal adaptada a las funciones correspondie
 
 | Buscar profesionales | Mis servicios |
 |:---:|:---:|
-| <img src="assets/.jpeg" width="250"> | <img src="assets/ClientServicesScreen.jpeg" width="250"> |
+| <img src="assets/SearchPro.jpeg" width="250"> | <img src="assets/ServiceClient.jpeg" width="250"> |
 
 ### 💰 Gestión de cotizaciones
 
 El profesional puede enviar una cotización al cliente como parte del proceso de atención de una solicitud de servicio.
+| Cotización del servicio |
+|:---:|
+| <img src="assets/PricePro.jpeg" width="250"> |
 
-La cotización enviada puede ser visualizada por el cliente dentro de la aplicación.
-
-> **Evidencia:** envío de cotización desde el perfil profesional y recepción de la cotización por parte del cliente.
 
 ---
 
