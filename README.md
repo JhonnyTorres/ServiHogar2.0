@@ -121,7 +121,9 @@ Entre los cambios registrados se encuentran modificaciones relacionadas con:
 La siguiente captura muestra el historial de commits registrados en el 
 repositorio de GitHub:
 
-|<img src="docs/evidencias.md/commits.png" width="900">|<img src="docs/evidencias.md/repositorio.png" width="900">|
+| Commits | Repositorio |
+|---|---|
+| <img src="docs/evidencias.md/commits.png" width="900"> | <img src="docs/evidencias.md/repositorio.png" width="900"> |
 
 ---
 
