@@ -1,404 +1,514 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
-    ActivityIndicator, Alert, ScrollView, Modal, SafeAreaView
+    ActivityIndicator, Alert, ScrollView
 } from "react-native";
 import {
-    collection, query, where, getDocs,
-    addDoc, serverTimestamp
+    collection, query, where, onSnapshot,
+    doc, updateDoc, getDoc
 } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../navigation/AuthContext";
 import { db } from "../services/firebaseService";
-import sqliteService from "../services/sqliteService";
+import { generarCotizacionPDF, generarFacturaPDF } from "../services/pdfService";
+import colors from "../constants/colors";
+import MontoModal from "../components/MontoModal";
 
-// ─── Categorías actualizadas ──────────────────────────────────────────────────
-const CATEGORIAS = [
-    { id: 'plomeria', label: 'Plomería', icon: 'water-outline' },
-    { id: 'electricidad', label: 'Electricidad', icon: 'flash-outline' },
-    { id: 'construccion', label: 'Construcción', icon: 'construct-outline' },
-    { id: 'pintura', label: 'Pintura', icon: 'color-palette-outline' },
-    { id: 'carpinteria', label: 'Carpintería', icon: 'hammer-outline' },
-    { id: 'cerrajeria', label: 'Cerrajería', icon: 'key-outline' },
-    { id: 'jardineria', label: 'Jardinería', icon: 'leaf-outline' },
-    { id: 'aseo', label: 'Aseo', icon: 'sparkles-outline' },
-    { id: 'gas', label: 'Gas', icon: 'flame-outline' },
-    { id: 'climatizacion', label: 'Climatización', icon: 'snow-outline' },
-    { id: 'domicilios', label: 'Domicilios', icon: 'bicycle-outline' },
-    { id: 'cuidado_ninos', label: 'Cuidado niños', icon: 'happy-outline' },
-    { id: 'adultos_mayores', label: 'Adultos mayores', icon: 'accessibility-outline' },
-    { id: 'servicios_gen', label: 'Servicios gen.', icon: 'briefcase-outline' },
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const LABEL_SERVICIOS = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.label]));
+const ESTADO_CONFIG = {
+    pendiente: { label: 'Pendiente', bg: colors.warningBg, color: colors.warning, icon: 'time-outline' },
+    en_proceso: { label: 'En proceso', bg: colors.infoBg, color: colors.primary, icon: 'construct-outline' },
+    finalizado: { label: 'Finalizado', bg: colors.successBg, color: colors.success, icon: 'checkmark-circle-outline' },
+    rechazado: { label: 'Rechazado', bg: colors.errorBg, color: colors.error, icon: 'close-circle-outline' },
+};
+
+const LABEL_SERVICIOS = {
+    plomeria: 'Plomería', electricidad: 'Electricidad', construccion: 'Construcción',
+    pintura: 'Pintura', carpinteria: 'Carpintería', cerrajeria: 'Cerrajería',
+    jardineria: 'Jardinería', limpieza: 'Limpieza', gas: 'Gas', climatizacion: 'Climatización',
+};
 
 const initials = (name = '') =>
     name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
-// ─── Estrellas ────────────────────────────────────────────────────────────────
-const Stars = ({ value = 0, count = 0 }) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-        {[1, 2, 3, 4, 5].map(n => (
-            <Ionicons
-                key={n}
-                name={n <= Math.round(value) ? 'star' : 'star-outline'}
-                size={12}
-                color={n <= Math.round(value) ? '#F59E0B' : '#D1D5DB'}
-            />
-        ))}
-        <Text style={styles.ratingText}>
-            {count > 0 ? `${value.toFixed(1)} (${count})` : 'Sin calificaciones'}
-        </Text>
-    </View>
-);
+const formatDate = (ts) => {
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
-// ─── Modal de confirmación ────────────────────────────────────────────────────
-const ConfirmModal = ({ visible, profesional, categoria, onConfirm, onCancel, loading }) => (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-        <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-                <View style={styles.modalHandle} />
-                <Text style={styles.modalTitle}>Confirmar solicitud</Text>
-                <Text style={styles.modalSubtitle}>
-                    ¿Quieres solicitar{' '}
-                    <Text style={{ fontWeight: '700', color: '#111' }}>
-                        {LABEL_SERVICIOS[categoria]}
-                    </Text>{' '}
-                    a <Text style={{ fontWeight: '700', color: '#111' }}>{profesional?.nombre}</Text>?
-                </Text>
-                <View style={styles.modalInfoBox}>
-                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
-                    <Text style={styles.modalInfoText}>
-                        El profesional recibirá tu solicitud y podrá aceptarla o rechazarla.
-                    </Text>
-                </View>
-                <View style={styles.modalButtons}>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} disabled={loading}>
-                        <Text style={styles.cancelBtnText}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.confirmBtn, loading && { opacity: 0.6 }]}
-                        onPress={onConfirm}
-                        disabled={loading}
-                    >
-                        {loading
-                            ? <ActivityIndicator color="#fff" size="small" />
-                            : <Text style={styles.confirmBtnText}>Confirmar</Text>
-                        }
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </View>
-    </Modal>
-);
+const formatCOP = (monto) =>
+    (monto || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
-// ─── Tarjeta de profesional ───────────────────────────────────────────────────
-const ProfessionalCard = ({ item, onSolicitar }) => {
-    const ini = initials(item.nombre);
-    const promedio = item.totalCalificaciones > 0
-        ? Math.round((item.sumaCalificaciones / item.totalCalificaciones) * 10) / 10
-        : 0;
-    const serviciosLabel = (item.servicios || []).map(s => LABEL_SERVICIOS[s] || s);
+// ─── Caché de clientes ────────────────────────────────────────────────────────
+
+const clientesCache = {};
+
+const getClientePerfil = async (uid) => {
+    if (clientesCache[uid]) return clientesCache[uid];
+    const snap = await getDoc(doc(db, 'usuarios', uid));
+    const data = snap.exists() ? snap.data() : { nombre: 'Cliente' };
+    clientesCache[uid] = data;
+    return data;
+};
+
+// ─── Tarjeta de solicitud ─────────────────────────────────────────────────────
+
+const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) => {
+    const navigation = useNavigation();
+    const estado = ESTADO_CONFIG[item.estado] || ESTADO_CONFIG.pendiente;
+    const categoriaLabel = LABEL_SERVICIOS[item.categoria] || item.categoria;
+    const ini = initials(item._clienteNombre);
+    const isLoading = loadingId === item.id;
+
+    const abrirChat = () => {
+        navigation.navigate('Chat', {
+            otroUid: item.clienteId,
+            otroNombre: item._clienteNombre,
+            servicioId: item.id,
+        });
+    };
 
     return (
         <View style={styles.card}>
+            {/* Header */}
             <View style={styles.cardHeader}>
+                <View>
+                    <Text style={styles.cardTitle}>{categoriaLabel}</Text>
+                    <Text style={styles.cardDate}>{formatDate(item.creadoEn)}</Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: estado.bg }]}>
+                    <Ionicons name={estado.icon} size={12} color={estado.color} />
+                    <Text style={[styles.badgeText, { color: estado.color }]}> {estado.label}</Text>
+                </View>
+            </View>
+
+            {/* Info cliente */}
+            <View style={styles.clienteRow}>
                 <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{ini}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.profesionalName}>{item.nombre}</Text>
-                    <Stars value={promedio} count={item.totalCalificaciones || 0} />
+                    <Text style={styles.clienteNombre}>{item._clienteNombre}</Text>
+                    <Text style={styles.clienteEmail}>{item._clienteEmail}</Text>
                 </View>
+                <TouchableOpacity style={styles.btnChat} onPress={abrirChat}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primaryAmber} />
+                </TouchableOpacity>
             </View>
-            <View style={styles.badgesRow}>
-                {serviciosLabel.map(s => (
-                    <View key={s} style={styles.badge}>
-                        <Text style={styles.badgeText}>{s}</Text>
+
+            {/* Monto cotizado / final, si existen */}
+            {(item.montoCotizado || item.montoFinal) && (
+                <View style={styles.montoRow}>
+                    <Text style={styles.montoLabel}>
+                        {item.estado === 'finalizado' ? 'Valor final' : 'Cotizado'}
+                    </Text>
+                    <Text style={styles.montoValor}>
+                        {formatCOP(item.estado === 'finalizado' ? item.montoFinal : item.montoCotizado)}
+                    </Text>
+                </View>
+            )}
+
+            {/* Calificación recibida si está finalizado */}
+            {item.estado === 'finalizado' && item.calificacion && (
+                <View style={styles.calificacionRow}>
+                    <Text style={styles.calLabel}>Calificación recibida:</Text>
+                    <View style={{ flexDirection: 'row', gap: 3, marginTop: 4 }}>
+                        {[1, 2, 3, 4, 5].map(n => (
+                            <Ionicons
+                                key={n}
+                                name={n <= item.calificacion ? 'star' : 'star-outline'}
+                                size={16}
+                                color={n <= item.calificacion ? colors.primaryAmber : colors.border}
+                            />
+                        ))}
                     </View>
-                ))}
-            </View>
-            <TouchableOpacity
-                style={styles.solicitarBtn}
-                onPress={() => onSolicitar(item)}
-                activeOpacity={0.85}
-            >
-                <Ionicons name="paper-plane-outline" size={15} color="#fff" />
-                <Text style={styles.solicitarBtnText}>Solicitar servicio</Text>
-            </TouchableOpacity>
+                    {item.comentario ? (
+                        <Text style={styles.calComentario}>"{item.comentario}"</Text>
+                    ) : null}
+                </View>
+            )}
+
+            {/* Acciones según estado */}
+            {isLoading ? (
+                <ActivityIndicator style={{ marginTop: 12 }} color={colors.primaryAmber} />
+            ) : (
+                <>
+                    {item.estado === 'pendiente' && (
+                        <View style={styles.botonesRow}>
+                            <TouchableOpacity
+                                style={styles.btnRechazar}
+                                onPress={() => onRechazar(item.id)}
+                            >
+                                <Ionicons name="close-outline" size={18} color={colors.error} />
+                                <Text style={styles.btnRechazarText}>Rechazar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.btnAceptar}
+                                onPress={() => onAceptar(item)}
+                            >
+                                <Ionicons name="checkmark-outline" size={18} color="#fff" />
+                                <Text style={styles.btnAceptarText}>Aceptar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {item.estado === 'en_proceso' && (
+                        <TouchableOpacity
+                            style={styles.btnFinalizar}
+                            onPress={() => onFinalizar(item)}
+                        >
+                            <Ionicons name="checkmark-done-outline" size={18} color="#fff" />
+                            <Text style={styles.btnFinalizarText}>Marcar como finalizado</Text>
+                        </TouchableOpacity>
+                    )}
+                </>
+            )}
         </View>
     );
 };
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
-const SearchProfessionalsScreen = () => {
+
+const ProfessionalServicesScreen = () => {
     const { user } = useAuth();
-    const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
-    const [profesionales, setProfesionales] = useState([]);
-    const [loadingSearch, setLoadingSearch] = useState(false);
-    const [loadingRequest, setLoadingRequest] = useState(false);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [selectedProfesional, setSelectedProfesional] = useState(null);
+    const [solicitudes, setSolicitudes] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadingId, setLoadingId] = useState(null);
+    const [filtro, setFiltro] = useState('pendiente');
+    const [profesionalNombre, setProfesionalNombre] = useState('');
 
-    const buscarProfesionales = useCallback(async (categoriaId, categoriaLabel) => {
-        setLoadingSearch(true);
-        setProfesionales([]);
-        try {
-            const q = query(
-                collection(db, 'usuarios'),
-                where('rol', '==', 'profesional'),
-                where('servicios', 'array-contains', categoriaId)
-            );
-            const snap = await getDocs(q);
-            const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Modal de monto: guarda a qué solicitud aplica y de qué tipo es
+    const [modalMonto, setModalMonto] = useState(null); // { servicio, tipo: 'cotizacion' | 'factura' }
 
-            lista.sort((a, b) => {
-                const pA = a.totalCalificaciones > 0 ? a.sumaCalificaciones / a.totalCalificaciones : 0;
-                const pB = b.totalCalificaciones > 0 ? b.sumaCalificaciones / b.totalCalificaciones : 0;
-                return pB - pA;
+    useEffect(() => {
+        if (!user) return;
+        getDoc(doc(db, 'usuarios', user.uid)).then(snap => {
+            setProfesionalNombre(snap.data()?.nombre || '');
+        });
+    }, [user]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        // onSnapshot escucha cambios en tiempo real
+        const q = query(
+            collection(db, 'servicios'),
+            where('profesionalId', '==', user.uid)
+        );
+
+        const unsubscribe = onSnapshot(q, async (snap) => {
+            const base = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // Obtener perfiles de clientes únicos
+            const uidsUnicos = [...new Set(base.map(s => s.clienteId).filter(Boolean))];
+            await Promise.all(uidsUnicos.map(uid => getClientePerfil(uid)));
+
+            // Enriquecer con datos del cliente
+            const enriquecidos = base.map(s => {
+                const perfil = clientesCache[s.clienteId] || {};
+                return {
+                    ...s,
+                    _clienteNombre: perfil.nombre || 'Cliente',
+                    _clienteEmail: perfil.email || '',
+                };
             });
 
-            setProfesionales(lista);
+            // Ordenar: pendiente primero, luego en_proceso, finalizado, rechazado
+            const orden = { pendiente: 0, en_proceso: 1, finalizado: 2, rechazado: 3 };
+            enriquecidos.sort((a, b) => {
+                if (orden[a.estado] !== orden[b.estado]) return orden[a.estado] - orden[b.estado];
+                const ta = a.creadoEn?.toDate?.() || 0;
+                const tb = b.creadoEn?.toDate?.() || 0;
+                return tb - ta;
+            });
 
-            // Guardar búsqueda en SQLite
-            try { sqliteService.guardarBusqueda(categoriaId, categoriaLabel); } catch (_) { }
-        } catch (error) {
-            console.error('Error al buscar profesionales:', error);
-            Alert.alert('Error', 'No se pudieron cargar los profesionales.');
-        } finally {
-            setLoadingSearch(false);
-        }
-    }, []);
+            setSolicitudes(enriquecidos);
+            setLoading(false);
+        }, (error) => {
+            console.error('Error al escuchar solicitudes:', error);
+            setLoading(false);
+        });
 
-    const handleSelectCategoria = (categoria) => {
-        setCategoriaSeleccionada(categoria.id);
-        buscarProfesionales(categoria.id, categoria.label);
-    };
+        // Limpiar listener al desmontar
+        return () => unsubscribe();
+    }, [user]);
 
-    const handleSolicitar = (profesional) => {
-        setSelectedProfesional(profesional);
-        setModalVisible(true);
-    };
-
-    const handleConfirmarSolicitud = async () => {
-        if (!selectedProfesional || !categoriaSeleccionada) return;
-        setLoadingRequest(true);
+    const actualizarServicio = async (servicioId, cambios) => {
+        setLoadingId(servicioId);
         try {
-            const q = query(
-                collection(db, 'servicios'),
-                where('clienteId', '==', user.uid),
-                where('profesionalId', '==', selectedProfesional.id),
-                where('estado', 'in', ['pendiente', 'en_proceso'])
-            );
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-                Alert.alert(
-                    'Solicitud existente',
-                    'Ya tienes un servicio activo con este profesional. Ve a Mis servicios para ver su estado.'
-                );
-                setModalVisible(false);
-                return;
+            await updateDoc(doc(db, 'servicios', servicioId), cambios);
+        } catch (error) {
+            console.error('Error al actualizar el servicio:', error);
+            Alert.alert('Error', 'No se pudo actualizar el servicio.');
+        } finally {
+            setLoadingId(null);
+        }
+    };
+
+    // ─── Aceptar → abre modal de cotización ────────────────────────────────────
+    const handleAceptar = (item) => {
+        setModalMonto({ servicio: item, tipo: 'cotizacion' });
+    };
+
+    const handleRechazar = (id) => {
+        Alert.alert(
+            'Rechazar solicitud',
+            '¿Seguro que quieres rechazar este servicio?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Rechazar', style: 'destructive', onPress: () => actualizarServicio(id, { estado: 'rechazado' }) },
+            ]
+        );
+    };
+
+    // ─── Finalizar → abre modal de factura ─────────────────────────────────────
+    const handleFinalizar = (item) => {
+        setModalMonto({ servicio: item, tipo: 'factura' });
+    };
+
+    // ─── Confirmación del modal: guarda en Firestore y genera el PDF ──────────
+    const handleConfirmarMonto = async ({ monto, descripcion }) => {
+        const { servicio, tipo } = modalMonto;
+        setModalMonto(null);
+
+        try {
+            if (tipo === 'cotizacion') {
+                await actualizarServicio(servicio.id, {
+                    estado: 'en_proceso',
+                    montoCotizado: monto,
+                    descripcionCotizacion: descripcion || null,
+                });
+                await generarCotizacionPDF({
+                    servicio,
+                    clienteNombre: servicio._clienteNombre,
+                    profesionalNombre,
+                    monto,
+                    descripcion,
+                });
+            } else {
+                await actualizarServicio(servicio.id, {
+                    estado: 'finalizado',
+                    montoFinal: monto,
+                });
+                await generarFacturaPDF({
+                    servicio,
+                    clienteNombre: servicio._clienteNombre,
+                    profesionalNombre,
+                    monto,
+                });
             }
-
-            await addDoc(collection(db, 'servicios'), {
-                clienteId: user.uid,
-                profesionalId: selectedProfesional.id,
-                categoria: categoriaSeleccionada,
-                estado: 'pendiente',
-                calificacion: null,
-                comentario: null,
-                calificadoEn: null,
-                creadoEn: serverTimestamp(),
-            });
-
-            setModalVisible(false);
-            Alert.alert('¡Solicitud enviada!', `${selectedProfesional.nombre} recibirá tu solicitud pronto.`);
         } catch (error) {
-            console.error('Error al crear solicitud:', error);
-            Alert.alert('Error', 'No se pudo enviar la solicitud. Intenta de nuevo.');
-        } finally {
-            setLoadingRequest(false);
+            console.error('Error al generar el documento:', error);
+            Alert.alert('Documento no generado', 'El servicio se actualizó, pero no se pudo generar el PDF.');
         }
     };
+
+    const FILTROS = [
+        { key: 'pendiente', label: 'Pendientes' },
+        { key: 'en_proceso', label: 'En proceso' },
+        { key: 'finalizado', label: 'Finalizados' },
+        { key: 'rechazado', label: 'Rechazados' },
+    ];
+
+    const filtrados = solicitudes.filter(s => s.estado === filtro);
+    const pendientesCount = solicitudes.filter(s => s.estado === 'pendiente').length;
+
+    if (loading) {
+        return (
+            <View style={styles.centered}>
+                <ActivityIndicator size="large" color={colors.primaryAmber} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <SafeAreaView style={styles.header} edges={['top']}>
-                <Text style={styles.headerTitle}>Buscar profesionales</Text>
-                <Text style={styles.headerSub}>Selecciona una categoría</Text>
-            </SafeAreaView>
-
-            {/* Chips de categorías */}
-            <View style={styles.chipsWrapper}>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipsContainer}
-                    style={{ flexGrow: 0 }}
-                >
-                    {CATEGORIAS.map(c => (
-                        <TouchableOpacity
-                            key={c.id}
-                            style={[
-                                styles.chip,
-                                categoriaSeleccionada === c.id && styles.chipActive
-                            ]}
-                            onPress={() => handleSelectCategoria(c)}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons
-                                name={c.icon}
-                                size={13}
-                                color={categoriaSeleccionada === c.id ? '#fff' : '#6B7280'}
-                            />
-                            <Text style={[
-                                styles.chipText,
-                                categoriaSeleccionada === c.id && styles.chipTextActive
-                            ]}>
-                                {c.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
+            {/* Encabezado sólido ámbar (rol profesional) */}
+            <View style={styles.header}>
+                <View>
+                    <Text style={styles.headerTitle}>Mis solicitudes</Text>
+                    <Text style={styles.headerSub}>{solicitudes.length} en total</Text>
+                </View>
+                {pendientesCount > 0 && (
+                    <View style={styles.badgePendientes}>
+                        <Text style={styles.badgePendientesText}>
+                            {pendientesCount} nueva{pendientesCount > 1 ? 's' : ''}
+                        </Text>
+                    </View>
+                )}
             </View>
 
-            {/* Contenido */}
-            {!categoriaSeleccionada ? (
+            {/* Filtros */}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filtrosScroll}
+                contentContainerStyle={styles.filtrosContainer}
+            >
+                {FILTROS.map(f => {
+                    const count = solicitudes.filter(s => s.estado === f.key).length;
+                    return (
+                        <TouchableOpacity
+                            key={f.key}
+                            style={[styles.filtroChip, filtro === f.key && styles.filtroChipActive]}
+                            onPress={() => setFiltro(f.key)}
+                        >
+                            <Text style={[styles.filtroText, filtro === f.key && styles.filtroTextActive]}>
+                                {f.label} {count > 0 ? `(${count})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
+            </ScrollView>
+
+            {/* Lista */}
+            {filtrados.length === 0 ? (
                 <View style={styles.centered}>
-                    <Ionicons name="search-outline" size={52} color="#D1D5DB" />
+                    <Ionicons name="clipboard-outline" size={48} color={colors.textMuted} />
                     <Text style={styles.emptyText}>
-                        Elige una categoría para ver los profesionales disponibles
-                    </Text>
-                </View>
-            ) : loadingSearch ? (
-                <View style={styles.centered}>
-                    <ActivityIndicator size="large" color="#2563EB" />
-                    <Text style={styles.emptyText}>Buscando profesionales...</Text>
-                </View>
-            ) : profesionales.length === 0 ? (
-                <View style={styles.centered}>
-                    <Ionicons name="person-remove-outline" size={52} color="#D1D5DB" />
-                    <Text style={styles.emptyText}>
-                        No hay profesionales disponibles en esta categoría aún
+                        No tienes solicitudes {FILTROS.find(f => f.key === filtro)?.label.toLowerCase()}
                     </Text>
                 </View>
             ) : (
                 <FlatList
-                    data={profesionales}
+                    data={filtrados}
                     keyExtractor={item => item.id}
                     renderItem={({ item }) => (
-                        <ProfessionalCard item={item} onSolicitar={handleSolicitar} />
+                        <SolicitudCard
+                            item={item}
+                            onAceptar={handleAceptar}
+                            onRechazar={handleRechazar}
+                            onFinalizar={handleFinalizar}
+                            loadingId={loadingId}
+                        />
                     )}
                     contentContainerStyle={styles.list}
                     showsVerticalScrollIndicator={false}
                 />
             )}
 
-            <ConfirmModal
-                visible={modalVisible}
-                profesional={selectedProfesional}
-                categoria={categoriaSeleccionada}
-                onConfirm={handleConfirmarSolicitud}
-                onCancel={() => setModalVisible(false)}
-                loading={loadingRequest}
+            <MontoModal
+                visible={!!modalMonto}
+                titulo={modalMonto?.tipo === 'cotizacion' ? 'Cotizar servicio' : 'Finalizar y facturar'}
+                subtitulo={
+                    modalMonto
+                        ? `${LABEL_SERVICIOS[modalMonto.servicio.categoria] || modalMonto.servicio.categoria} · ${modalMonto.servicio._clienteNombre}`
+                        : ''
+                }
+                montoInicial={modalMonto?.tipo === 'factura' ? modalMonto.servicio.montoCotizado : ''}
+                pedirDescripcion={modalMonto?.tipo === 'cotizacion'}
+                onConfirmar={handleConfirmarMonto}
+                onCancelar={() => setModalMonto(null)}
             />
         </View>
     );
 };
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F5F7FA' },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
-    emptyText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 22 },
+    container: { flex: 1, backgroundColor: colors.bg },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+    emptyText: { fontSize: 15, color: colors.textMuted, textAlign: 'center', paddingHorizontal: 32 },
 
     header: {
-        backgroundColor: '#2563EB',
-        paddingHorizontal: 20,
-        paddingTop: 16, paddingBottom: 16,
+        backgroundColor: colors.primaryAmber, paddingHorizontal: 20,
+        paddingTop: 20, paddingBottom: 16,
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     },
-    headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
+    headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+    badgePendientes: {
+        backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12,
+        paddingVertical: 6, borderRadius: 20,
+    },
+    badgePendientesText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-    chipsWrapper: {
-        backgroundColor: '#fff',
-        borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB',
+    filtrosScroll: { flexGrow: 0, flexShrink: 0 },
+    filtrosContainer: { paddingHorizontal: 20, paddingVertical: 12, gap: 8, alignItems: 'center' },
+    filtroChip: {
+        paddingHorizontal: 16, paddingVertical: 7,
+        borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card,
     },
-    chipsContainer: {
-        paddingHorizontal: 14, paddingVertical: 10,
-        gap: 8, alignItems: 'center',
-    },
-    chip: {
-        flexDirection: 'row', alignItems: 'center', gap: 5,
-        paddingHorizontal: 12, paddingVertical: 7,
-        borderRadius: 20, borderWidth: 0.5,
-        borderColor: '#E5E7EB', backgroundColor: '#F9FAFB',
-        alignSelf: 'flex-start',
-    },
-    chipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-    chipText: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
-    chipTextActive: { color: '#fff', fontWeight: '600' },
+    filtroChipActive: { backgroundColor: colors.primaryAmber, borderColor: colors.primaryAmber },
+    filtroText: { fontSize: 13, color: colors.textMuted },
+    filtroTextActive: { color: '#fff', fontWeight: '600' },
 
-    list: { padding: 16, gap: 12 },
+    list: { padding: 0, gap: 0, paddingBottom: 24 },
 
     card: {
-        backgroundColor: '#fff', borderRadius: 14,
-        padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB',
+        backgroundColor: colors.card, borderRadius: 14,
+        padding: 16, borderWidth: 1, borderColor: colors.border, marginHorizontal: 20,
+        marginBottom: 12,
     },
     cardHeader: {
+        flexDirection: 'row', justifyContent: 'space-between',
+        alignItems: 'flex-start', marginBottom: 12,
+    },
+    cardTitle: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+    cardDate: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    badge: {
         flexDirection: 'row', alignItems: 'center',
-        gap: 10, marginBottom: 10,
+        paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    },
+    badgeText: { fontSize: 11, fontWeight: '600' },
+
+    clienteRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: colors.bg, borderRadius: 10, padding: 10,
     },
     avatar: {
-        width: 42, height: 42, borderRadius: 21,
-        backgroundColor: '#DBEAFE',
-        alignItems: 'center', justifyContent: 'center',
+        width: 38, height: 38, borderRadius: 19,
+        backgroundColor: colors.chipBg, alignItems: 'center', justifyContent: 'center',
     },
-    avatarText: { fontSize: 14, fontWeight: '700', color: '#1E40AF' },
-    profesionalName: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 3 },
-    ratingText: { fontSize: 11, color: '#6B7280', marginLeft: 2 },
-
-    badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-    badge: {
-        backgroundColor: '#EFF6FF', paddingHorizontal: 9,
-        paddingVertical: 3, borderRadius: 20,
+    avatarText: { fontSize: 13, fontWeight: '600', color: colors.primaryAmber },
+    clienteNombre: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    clienteEmail: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    btnChat: {
+        width: 34, height: 34, borderRadius: 17, backgroundColor: colors.card,
+        borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
     },
-    badgeText: { fontSize: 11, color: '#2563EB', fontWeight: '500' },
 
-    solicitarBtn: {
+    montoRow: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border,
+    },
+    montoLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+    montoValor: { fontSize: 15, color: colors.textPrimary, fontWeight: '700' },
+
+    calificacionRow: {
+        marginTop: 12, borderTopWidth: 1,
+        borderTopColor: colors.border, paddingTop: 10,
+    },
+    calLabel: { fontSize: 13, color: colors.textMuted },
+    calComentario: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', marginTop: 6 },
+
+    botonesRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    btnRechazar: {
+        flex: 1, flexDirection: 'row', alignItems: 'center',
+        justifyContent: 'center', gap: 6,
+        padding: 10, borderRadius: 10,
+        borderWidth: 1, borderColor: colors.error,
+        backgroundColor: colors.errorBg,
+    },
+    btnRechazarText: { fontSize: 14, color: colors.error, fontWeight: '600' },
+    btnAceptar: {
+        flex: 1, flexDirection: 'row', alignItems: 'center',
+        justifyContent: 'center', gap: 6,
+        padding: 10, borderRadius: 10,
+        backgroundColor: colors.success,
+    },
+    btnAceptarText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+    btnFinalizar: {
         flexDirection: 'row', alignItems: 'center',
-        justifyContent: 'center', gap: 7,
-        backgroundColor: '#2563EB', padding: 11, borderRadius: 10,
+        justifyContent: 'center', gap: 6,
+        marginTop: 12, padding: 11, borderRadius: 10,
+        backgroundColor: colors.success,
     },
-    solicitarBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-    modalCard: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 22, borderTopRightRadius: 22,
-        padding: 24, paddingBottom: 36,
-    },
-    modalHandle: {
-        width: 40, height: 4, borderRadius: 2,
-        backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 16,
-    },
-    modalTitle: { fontSize: 18, fontWeight: '700', color: '#111', marginBottom: 8 },
-    modalSubtitle: { fontSize: 14, color: '#444', lineHeight: 22, marginBottom: 14 },
-    modalInfoBox: {
-        flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-        backgroundColor: '#EFF6FF', borderRadius: 10,
-        padding: 12, marginBottom: 20,
-    },
-    modalInfoText: { flex: 1, fontSize: 13, color: '#2563EB', lineHeight: 18 },
-    modalButtons: { flexDirection: 'row', gap: 12 },
-    cancelBtn: {
-        flex: 1, padding: 13, borderRadius: 10,
-        borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center',
-    },
-    cancelBtnText: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
-    confirmBtn: { flex: 1, padding: 13, borderRadius: 10, backgroundColor: '#2563EB', alignItems: 'center' },
-    confirmBtnText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+    btnFinalizarText: { fontSize: 14, color: '#fff', fontWeight: '600' },
 });
 
-export default SearchProfessionalsScreen;
+export default ProfessionalServicesScreen;

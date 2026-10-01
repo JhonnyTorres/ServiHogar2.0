@@ -8,6 +8,7 @@ import {
     doc, updateDoc, getDoc
 } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../navigation/AuthContext";
 import { db } from "../services/firebaseService";
 import { generarCotizacionPDF, generarFacturaPDF } from "../services/pdfService";
@@ -56,10 +57,19 @@ const getClientePerfil = async (uid) => {
 // ─── Tarjeta de solicitud ─────────────────────────────────────────────────────
 
 const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) => {
+    const navigation = useNavigation();
     const estado = ESTADO_CONFIG[item.estado] || ESTADO_CONFIG.pendiente;
     const categoriaLabel = LABEL_SERVICIOS[item.categoria] || item.categoria;
     const ini = initials(item._clienteNombre);
     const isLoading = loadingId === item.id;
+
+    const abrirChat = () => {
+        navigation.navigate('Chat', {
+            otroUid: item.clienteId,
+            otroNombre: item._clienteNombre,
+            servicioId: item.id,
+        });
+    };
 
     return (
         <View style={styles.card}>
@@ -84,6 +94,9 @@ const SolicitudCard = ({ item, onAceptar, onRechazar, onFinalizar, loadingId }) 
                     <Text style={styles.clienteNombre}>{item._clienteNombre}</Text>
                     <Text style={styles.clienteEmail}>{item._clienteEmail}</Text>
                 </View>
+                <TouchableOpacity style={styles.btnChat} onPress={abrirChat}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primaryAmber} />
+                </TouchableOpacity>
             </View>
 
             {/* Monto cotizado / final, si existen */}
@@ -332,6 +345,7 @@ const ProfessionalServicesScreen = () => {
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={styles.filtrosScroll}
                 contentContainerStyle={styles.filtrosContainer}
             >
                 {FILTROS.map(f => {
@@ -413,7 +427,8 @@ const styles = StyleSheet.create({
     },
     badgePendientesText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-    filtrosContainer: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
+    filtrosScroll: { flexGrow: 0, flexShrink: 0 },
+    filtrosContainer: { paddingHorizontal: 20, paddingVertical: 12, gap: 8, alignItems: 'center' },
     filtroChip: {
         paddingHorizontal: 16, paddingVertical: 7,
         borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card,
@@ -452,6 +467,10 @@ const styles = StyleSheet.create({
     avatarText: { fontSize: 13, fontWeight: '600', color: colors.primaryAmber },
     clienteNombre: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
     clienteEmail: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    btnChat: {
+        width: 34, height: 34, borderRadius: 17, backgroundColor: colors.card,
+        borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
+    },
 
     montoRow: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

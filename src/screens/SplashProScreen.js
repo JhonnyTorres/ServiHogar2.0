@@ -129,7 +129,7 @@ const SplashProScreen = ({ onDone }) => {
                 <Ionicons name="construct" size={40} color="#fff" />
             </IconoPulsante>
 
-            <FadeUp delay={200} style={{ alignItems: 'center' }}>
+            <FadeUp delay={200} style={{ alignItems: 'center', width: '100%' }}>
                 <Text style={styles.titulo}>ServiHogar</Text>
                 <Text style={styles.subtitulo}>Panel de profesionales</Text>
             </FadeUp>
@@ -178,25 +178,30 @@ const styles = StyleSheet.create({
     },
 
     titulo: { color: '#fff', fontSize: 26, fontWeight: '700' },
-    subtitulo: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 },
+    subtitulo: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6, textAlign: 'center' },
     divider: { width: 40, height: 2, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, marginVertical: 24 },
 
     card: {
         backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
         borderRadius: 16, padding: 20, width: '100%', alignItems: 'center', marginBottom: 20,
+        overflow: 'visible',
     },
     cardEmoji: { fontSize: 24, marginBottom: 10 },
     cardTitulo: { color: '#fff', fontSize: 17, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
     cardTexto: { color: 'rgba(255,255,255,0.65)', fontSize: 13, textAlign: 'center', lineHeight: 19 },
     cardDestacado: { color: '#FCD34D', fontWeight: '700' },
 
-    metricasRow: { flexDirection: 'row', gap: 10, width: '100%', marginBottom: 32 },
+    metricasRow: { flexDirection: 'row', gap: 8, width: '100%', marginBottom: 32 },
     metricaCard: {
         flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center',
+        borderRadius: 10, paddingVertical: 12, paddingHorizontal: 4, alignItems: 'center',
+        overflow: 'visible', minHeight: 56,
     },
-    metricaValor: { fontSize: 16, fontWeight: '700' },
-    metricaLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 2 },
+    metricaValor: { fontSize: 15, fontWeight: '700' },
+    metricaLabel: {
+        color: 'rgba(255,255,255,0.6)', fontSize: 9, marginTop: 4,
+        textAlign: 'center', flexShrink: 1,
+    },
 
     loaderWrap: { alignItems: 'center', gap: 10 },
     spinner: { width: 28, height: 28, borderRadius: 14, borderWidth: 3, borderColor: 'rgba(255,255,255,0.2)', borderTopColor: 'rgba(255,255,255,0.85)' },

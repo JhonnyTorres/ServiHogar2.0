@@ -102,7 +102,7 @@ const SplashClientScreen = ({ onDone }) => {
                 <Ionicons name="home" size={44} color="#fff" />
             </IconoPulsante>
 
-            <FadeUp delay={200} style={{ alignItems: 'center' }}>
+            <FadeUp delay={200} style={{ alignItems: 'center', width: '100%' }}>
                 <Text style={styles.titulo}>ServiHogar</Text>
                 <Text style={styles.subtitulo}>Servicios del hogar a tu alcance</Text>
             </FadeUp>
@@ -157,20 +157,24 @@ const styles = StyleSheet.create({
     },
 
     titulo: { color: '#fff', fontSize: 26, fontWeight: '700' },
-    subtitulo: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 },
+    subtitulo: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6, textAlign: 'center' },
     divider: { width: 40, height: 2, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, marginVertical: 24 },
 
     card: {
         backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
         borderRadius: 16, padding: 20, width: '100%', alignItems: 'center', marginBottom: 24,
+        overflow: 'visible',
     },
     cardEmoji: { fontSize: 24, marginBottom: 10 },
     cardTitulo: { color: '#fff', fontSize: 17, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
     cardTexto: { color: 'rgba(255,255,255,0.65)', fontSize: 13, textAlign: 'center', lineHeight: 19 },
 
-    chipsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 32 },
-    chip: { backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
-    chipTexto: { color: '#fff', fontSize: 12 },
+    chipsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 32, width: '100%' },
+    chip: {
+        backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, overflow: 'visible',
+    },
+    chipTexto: { color: '#fff', fontSize: 12, flexShrink: 1 },
 
     loaderWrap: { alignItems: 'center', gap: 10 },
     spinner: { width: 28, height: 28, borderRadius: 14, borderWidth: 3, borderColor: 'rgba(255,255,255,0.2)', borderTopColor: 'rgba(255,255,255,0.85)' },

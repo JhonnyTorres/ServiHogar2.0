@@ -9,6 +9,7 @@ import {
     doc, getDoc, updateDoc, Timestamp, orderBy, increment
 } from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../navigation/AuthContext";
 import { db } from "../services/firebaseService";
 import sqliteService from "../services/sqliteService";
@@ -136,12 +137,21 @@ const RatingModal = ({ visible, servicio, onClose, onSubmit }) => {
 
 // ─── Tarjeta de servicio ──────────────────────────────────────────────────────
 const ServiceCard = ({ item, onCalificar }) => {
+    const navigation = useNavigation();
     const estado = ESTADO_CONFIG[item.estado] || ESTADO_CONFIG.pendiente;
     const categoriaLabel = LABEL_SERVICIOS[item.categoria] || item.categoria;
     const yaCalifico = item.calificacion !== null && item.calificacion !== undefined;
     const ini = initials(item._profesionalNombre);
     const serviciosLabel = (item._profesionalServicios || [])
         .map(s => LABEL_SERVICIOS[s] || s).join(' · ');
+
+    const abrirChat = () => {
+        navigation.navigate('Chat', {
+            otroUid: item.profesionalId,
+            otroNombre: item._profesionalNombre,
+            servicioId: item.id,
+        });
+    };
 
     return (
         <View style={[styles.card, item.estado === 'rechazado' && styles.cardRechazado]}>
@@ -179,6 +189,11 @@ const ServiceCard = ({ item, onCalificar }) => {
                         </Text>
                     ) : null}
                 </View>
+                {item.estado !== 'rechazado' && (
+                    <TouchableOpacity style={styles.btnChat} onPress={abrirChat}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={18} color="#2563EB" />
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* Calificación */}
@@ -427,6 +442,10 @@ const styles = StyleSheet.create({
     avatarText: { fontSize: 12, fontWeight: '700', color: '#1E40AF' },
     profesionalName: { fontSize: 13, fontWeight: '600', color: '#111' },
     profesionalServices: { fontSize: 11, color: '#6B7280', marginTop: 1 },
+    btnChat: {
+        width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff',
+        borderWidth: 0.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center',
+    },
 
     ratingSection: {
         marginTop: 10, borderTopWidth: 0.5,
